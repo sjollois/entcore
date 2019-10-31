@@ -40,7 +40,7 @@
     "@angular/platform-browser": "4.4.7",
     "@angular/platform-browser-dynamic": "4.4.7",
     "@angular/router": "4.4.7",
-    "axios": "0.15.3",
+    "axios": "0.18.1",
     "entcore-generic-icons": "opendigitaleducation/generic-icons",
     "flatpickr": "2.6.1",
     "infra-components": "^1.1.0-alpha",
