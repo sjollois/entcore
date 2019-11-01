@@ -418,29 +418,29 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void massDistributionAndLevelOfEducation(JsonArray data, Handler<Either<String, JsonObject>> handler) {
 
-		StatementsBuilder s = new StatementsBuilder();
+		Map<String,List<List<Object>>> map = new HashMap<>();
 
-		data.forEach(entry -> {
+		for (int i = 0; i < data.size(); i++) {
 
-			JsonObject jo = (JsonObject) entry;
-			String structureId = jo.getString("ent_structure_id");
-			String distribution = jo.getString("distribution");
-			Integer education = jo.getInteger("education");
+			JsonObject entry = data.getJsonObject(i);
+			String structureId = entry.getString("ent_structure_id");
+			String distribution = entry.getString("distribution");
+			Integer education = entry.getInteger("education");
 
-			if (structureId != null) {
-				String query = "MATCH (s:Structure {id: {structureId}}) " +
-						"SET s.levelsOfEducation = {levelsOfEducation} " +
-						"SET s.distributions = {distributions} ";
+			map.put(structureId,
+					Arrays.asList(education != null ? Arrays.asList(education) : new ArrayList<>(),
+					distribution != null ? Arrays.asList(distribution) : new ArrayList<>()));
+		}
 
-				JsonObject params = new JsonObject().put("structureId", structureId)
-						.put("levelsOfEducation", education != null ? Arrays.asList(education) : Collections.EMPTY_LIST)
-						.put("distributions", distribution != null ? Arrays.asList(distribution) : Collections.EMPTY_LIST);
+		String query = "WITH {structures} AS data, [k in keys({structures})] AS structuresIds " +
+				"MATCH (s:Structure) WHERE s.id IN structuresIds " +
+				"SET s.levelsOfEducation = data[s.id][0] "+
+				"SET s.distributions = data[s.id][1] ";
 
-				s.add(query, params);
-			}
+		JsonObject params = new JsonObject().put("structures", map);
 
-		});
+		neo.execute(query, params, validEmptyHandler(handler));
 
-		neo.executeTransaction(s.build(), null, true, validEmptyHandler(handler));
 	}
+
 }
