@@ -22,6 +22,8 @@ package org.entcore.registry.services.impl;
 import fr.wseduc.webutils.Either;
 import fr.wseduc.webutils.collections.Joiner;
 
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
 import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.neo4j.Neo4jResult;
 import org.entcore.common.neo4j.StatementsBuilder;
@@ -618,7 +620,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 	}
 
 	@Override
-	public void massAuthorize(String structureId, List<String> profiles, List<String> rolesId, Handler<Either<String, JsonObject>> handler) {
+	public void massAuthorize(String structureId, List<String> profiles, List<String> rolesOrWidgetsId, Handler<Either<String, JsonObject>> handler) {
 		String query = "";
 		if (profiles.contains("AdminLocal")) {
 			profiles = profiles.stream()
@@ -626,13 +628,13 @@ public class DefaultAppRegistryService implements AppRegistryService {
 					.collect(Collectors.toList());
 			if (profiles.size() == 0) {
 				// Only ADML
-				query = "MATCH (r:Role), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup) " +
-						"WHERE r.id IN {roleIds} AND fg.name ENDS WITH 'AdminLocal' AND NOT(fg-[:AUTHORIZED]->r) " +
+				query = "MATCH (r), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup) " +
+						"WHERE (r:Role OR r:Widget) AND r.id IN {rolesOrWidgetsId} AND fg.name ENDS WITH 'AdminLocal' AND NOT(fg-[:AUTHORIZED]->r) " +
 						"CREATE UNIQUE (fg)-[:AUTHORIZED]->(r)";
 			} else {
 				// Profiles + ADML
-				query = "MATCH (r:Role), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure) " +
-						"WHERE r.id IN {roleIds} " +
+				query = "MATCH (r), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure) " +
+						"WHERE (r:Role OR r:Widget) AND r.id IN {rolesOrWidgetsId} " +
 						"WITH s, r " +
 						"OPTIONAL MATCH (s)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 						"WHERE p.name IN {profiles} AND NOT(g-[:AUTHORIZED]->r) " +
@@ -644,15 +646,15 @@ public class DefaultAppRegistryService implements AppRegistryService {
 			}
 		} else {
 			// only Profiles (no ADML)
-			query = "MATCH (r:Role), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-					"WHERE r.id IN {roleIds} AND p.name IN {profiles} AND NOT(g-[:AUTHORIZED]->r) " +
+			query = "MATCH (r), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+					"WHERE (r:Role OR r:Widget) AND r.id IN {rolesOrWidgetsId} AND p.name IN {profiles} AND NOT(g-[:AUTHORIZED]->r) " +
 					"CREATE UNIQUE (g)-[:AUTHORIZED]->(r) ";
 		}
-		executeQueryForStructureProfilesAndRoles(query, structureId, profiles, rolesId, handler);
+		executeQueryForStructureProfilesAndRoles(query, structureId, profiles, rolesOrWidgetsId, handler);
 	}
 
 	@Override
-	public void massUnauthorize(String structureId, List<String> profiles, List<String> rolesId, Handler<Either<String, JsonObject>> handler) {
+	public void massUnauthorize(String structureId, List<String> profiles, List<String> rolesOrWidgetsId, Handler<Either<String, JsonObject>> handler) {
 		String query = "";
 		if (profiles.contains("AdminLocal")) {
 			profiles = profiles.stream()
@@ -660,16 +662,16 @@ public class DefaultAppRegistryService implements AppRegistryService {
 					.collect(Collectors.toList());
 			if (profiles.size() == 0) {
 				// Only ADML
-				query = "MATCH (r:Role), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup) " +
-						"WHERE r.id IN {roleIds} " +
+				query = "MATCH (r), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup) " +
+						"WHERE (r:Role OR r:Widget) AND r.id IN {rolesOrWidgetsId} " +
 						"AND fg.name ENDS WITH 'AdminLocal' " +
 						"MATCH (fg)-[auth:AUTHORIZED]->(r) " +
 						"DELETE auth";
 			}
 			else {
 				// Profiles + ADML
-				query = "MATCH (r:Role), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure) " +
-						"WHERE r.id IN {roleIds} " +
+				query = "MATCH (r), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure) " +
+						"WHERE (r:Role OR r:Widget) AND r.id IN {rolesOrWidgetsId} " +
 						"WITH s, r " +
 						"OPTIONAL MATCH (s)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), (g)-[auth:AUTHORIZED]->(r)" +
 						"WHERE p.name IN {profiles} " +
@@ -681,22 +683,22 @@ public class DefaultAppRegistryService implements AppRegistryService {
 			}
 		} else {
 			// only Profiles (no ADML)
-			query = "MATCH (r:Role), " +
+			query = "MATCH (r), " +
 					"(parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), " +
 					"(r)<-[auth:AUTHORIZED]-(g) " +
-					"WHERE r.id IN {roleIds} AND p.name IN {profiles} " +
+					"WHERE (r:Role OR r:Widget) AND r.id IN {rolesOrWidgetsId} AND p.name IN {profiles} " +
 					"DELETE auth";
 		}
-		executeQueryForStructureProfilesAndRoles(query, structureId, profiles, rolesId, handler);
+		executeQueryForStructureProfilesAndRoles(query, structureId, profiles, rolesOrWidgetsId, handler);
 	}
 
-	private void executeQueryForStructureProfilesAndRoles(String query, String structureId, List<String> profiles, List<String> rolesId, Handler<Either<String, JsonObject>> handler) {
+	private void executeQueryForStructureProfilesAndRoles(String query, String structureId, List<String> profiles, List<String> rolesOrWidgetsId, Handler<Either<String, JsonObject>> handler) {
 		JsonObject params = new JsonObject();
 		params.put("structureId", structureId);
 		if(profiles != null && profiles.size() > 0) {
 				params.put("profiles", new fr.wseduc.webutils.collections.JsonArray(profiles));
 		}
-		params.put("roleIds", new fr.wseduc.webutils.collections.JsonArray(rolesId));
+		params.put("rolesOrWidgetsId", new fr.wseduc.webutils.collections.JsonArray(rolesOrWidgetsId));
 		neo.execute(query, params, validEmptyHandler(handler));
 	}
 
@@ -729,9 +731,35 @@ public class DefaultAppRegistryService implements AppRegistryService {
 
 		}
 
-		String query = "WITH {structures} AS data, [k in keys({structures})] AS structuresIds " +
+		String query = "MATCH ()<-[a:AUTHORIZED]-(Group)-[:DEPENDS]->(Class)-[:BELONGS*0..]->(s:Structure) "+
+				"WHERE s.id IN {structuresIds} DELETE a";
+
+		JsonObject params = new JsonObject().put("structuresIds", new JsonArray(map.keySet().stream().collect(Collectors.toList())));
+		neo.execute(query, params, done -> {
+
+			List<Future> list = new ArrayList<>();
+
+			map.entrySet().forEach(structure -> {
+				structure.getValue().entrySet().forEach(roleOrWidget -> {
+					Future promise = Future.future();
+					list.add(promise);
+					massAuthorize(structure.getKey(), roleOrWidget.getValue(),
+							Collections.singletonList(roleOrWidget.getKey()), completed -> {
+						log.info("[CRM] - Roles attribution done for structure "+structure.getKey()+ " | role  "+roleOrWidget.getKey()+".");
+						promise.complete();
+					});
+				});
+			});
+			CompositeFuture.join(list).setHandler(compositeFutureAsyncResult -> {
+				log.info("[CRM] - Roles attribution over for all of them.");
+			});
+
+			validEmptyHandler(handler);
+		});
+
+		/*String query = "WITH {structures} AS data, [k in keys({structures})] AS structuresIds " +
 				"MATCH (s:Structure) WHERE s.id IN structuresIds " +
-				"MATCH (Role)<-[a:AUTHORIZED]-(Group)-[:DEPENDS]->(Class)-[:BELONGS*0..]->(s) DELETE a " +
+				"MATCH ()<-[a:AUTHORIZED]-(Group)-[:DEPENDS]->(Class)-[:BELONGS*0..]->(s) DELETE a " +
 				"WITH s, [k in keys(data[s.id])] AS rolesOrWidgetsIds, data " +
 				"MATCH (r) WHERE (r:Role OR r:Widget) AND r.id IN rolesOrWidgetsIds " +
 				"WITH s, r, data[s.id][r.id] AS profiles " +
@@ -744,7 +772,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 
 		log.info("ICI: "+map);
 
-		neo.execute(query, params, validEmptyHandler(handler));
+		neo.execute(query, params, validEmptyHandler(handler));*/
 	}
 
 }
