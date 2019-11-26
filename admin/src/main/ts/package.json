@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build --deploy-url=public/ --base-href=/admin/ && ./node_modules/gulp/bin/gulp.js buildWithLocalPath",
+    "start": "ng serve --deploy-url=public/dist/ --base-href=/ --proxy-config=proxy.conf.json",
+    "build": "ng build --deploy-url=public/dist/ --base-href=/admin/ && ./node_modules/gulp/bin/gulp.js buildWithLocalPath",
     "build-prod": "ng build --prod --deploy-url=public/ --base-href=/admin/ && ./node_modules/gulp/bin/gulp.js buildWithDockerPath",
     "test": "ng test",
     "lint": "ng lint",
@@ -26,6 +26,7 @@
     "entcore-generic-icons": "opendigitaleducation/generic-icons",
     "entcore-toolkit": "^1.0.1",
     "flatpickr": "2.6.1",
+    "font-awesome": "4.7.0",
     "jquery": "^3.4.1",
     "ngx-infinite-scroll": "^0.7.0",
     "noty": "2.4.1",
